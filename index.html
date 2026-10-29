@@ -115,7 +115,14 @@ footer{text-align:center;padding:50px 20px 70px;font-size:11px}
 #songsBtn{font:inherit;font-size:12px;cursor:pointer;background:var(--accent);color:#fff;border:0;padding:10px 16px;transition:transform .15s}
 #songsBtn:hover{transform:translateY(-2px)}
 #songsPanel{position:fixed;top:68px;left:50%;transform:translateX(-50%);width:min(440px,92vw);background:var(--bg1);color:var(--ink);padding:18px;z-index:30;display:none}
-#songsPanel.on{display:block}
+#songsPanel.on{display:block;animation:songsOpen .35s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes songsOpen{from{opacity:0;transform:translateX(-50%) translateY(-18px) scale(.9)}to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}
+.song{animation:songIn .4s cubic-bezier(.2,.9,.3,1) backwards}#songsPanel.on .song:nth-of-type(2){animation-delay:.08s}
+@keyframes songIn{from{opacity:0;transform:translateY(12px)}}
+.volRow{display:flex;align-items:center;gap:10px;margin-top:12px;background:var(--card);padding:12px}
+.volRow button{font:inherit;font-size:11px;background:var(--accent);color:#fff;border:0;padding:10px 12px;cursor:pointer;white-space:nowrap;min-width:48px}
+.volRow input{flex:1;min-width:0;accent-color:var(--accent);cursor:pointer}
+.volRow span{font-size:11px;min-width:34px;text-align:right}
 #songsPanel h3{font-size:14px;text-align:center;margin-bottom:12px}
 .song{display:flex;align-items:center;gap:12px;background:var(--card);padding:12px;margin-bottom:12px}
 .song:last-of-type{margin-bottom:0}
@@ -140,6 +147,7 @@ footer{text-align:center;padding:50px 20px 70px;font-size:11px}
 <div id="songsPanel" class="px" role="dialog" aria-label="Songs">
   <h3>♪ Our Songs ♪</h3>
   <div id="songList"></div>
+  <div class="volRow"><button id="muteBtn" type="button" aria-label="Mute or unmute">🔊</button><input id="volRange" type="range" min="0" max="100" value="70" aria-label="Volume"><span id="volPct">70%</span></div>
 </div>
 
 <div class="hero">
@@ -345,6 +353,14 @@ const SONGS=[
 (function(){
   const btn=document.getElementById("songsBtn"),panel=document.getElementById("songsPanel"),list=document.getElementById("songList");
   let cur=null; /* {audio,row,play} */
+  const vr=document.getElementById("volRange"),vl=document.getElementById("volPct"),mb=document.getElementById("muteBtn");
+  let vol=0.7,muted=false;const audios=[];
+  function applyVol(){audios.forEach(a=>{a.volume=vol;a.muted=muted});
+    const eff=muted?0:Math.round(vol*100);vl.textContent=eff+"%";vr.value=eff;
+    mb.textContent=eff===0?"🔇":eff<50?"🔉":"🔊"}
+  vr.oninput=()=>{vol=vr.value/100;muted=vol===0;applyVol()};
+  mb.onclick=()=>{if(muted||vol===0){muted=false;if(vol===0)vol=0.7}else muted=true;applyVol()};
+  function toBlobUrl(u){const i=u.indexOf(","),bin=atob(u.slice(i+1)),n=bin.length,a=new Uint8Array(n);for(let k=0;k<n;k++)a[k]=bin.charCodeAt(k);return URL.createObjectURL(new Blob([a],{type:"audio/mpeg"}))}
   function stop(){if(cur){cur.audio.pause();cur.row.classList.remove("playing");cur.play.textContent="▶ Play";cur=null}}
   SONGS.forEach(sg=>{
     const row=document.createElement("div");row.className="song px";
@@ -353,7 +369,7 @@ const SONGS=[
     const sm=document.createElement("small");sm.textContent=sg.a;
     meta.append(b);if(sg.a)meta.append(sm);
     const play=document.createElement("button");play.type="button";play.textContent="▶ Play";
-    const audio=new Audio();audio.preload="none";audio.src=sg.src;
+    const audio=new Audio();audio.preload="none";audios.push(audio);audio.volume=vol;let ready=false;
     audio.addEventListener("ended",()=>{row.classList.remove("playing");play.textContent="▶ Play";if(cur&&cur.audio===audio)cur=null});
     audio.addEventListener("error",()=>{
       if(cur&&cur.audio===audio){cur=null}row.classList.remove("playing");play.textContent="▶ Play";
@@ -364,7 +380,7 @@ const SONGS=[
       stop();
       const e=meta.querySelector(".err");if(e)e.remove();
       cur={audio,row,play};row.classList.add("playing");play.textContent="❚❚ Pause";
-      audio.play().catch(()=>{})};
+      if(!ready){try{audio.src=toBlobUrl(sg.src)}catch(_){audio.src=sg.src}ready=true}audio.currentTime=0;audio.play().catch(()=>{})};
     row.append(meta,play);list.append(row);
   });
   const close=()=>{panel.classList.remove("on");btn.setAttribute("aria-expanded","false")};
