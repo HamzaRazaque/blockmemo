@@ -1,0 +1,17 @@
+{
+  "rules": {
+    "likes": {
+      ".read": true,
+      "$photo": { "$client": { ".write": true, ".validate": "newData.val() === true" } }
+    },
+    "comments": {
+      ".read": true,
+      "$photo": {
+        "$id": {
+          ".write": "!data.exists() && newData.exists()",
+          ".validate": "newData.hasChildren(['n','t','ts']) && newData.child('n').isString() && newData.child('n').val().length <= 24 && newData.child('t').isString() && newData.child('t').val().length <= 300"
+        }
+      }
+    }
+  }
+}

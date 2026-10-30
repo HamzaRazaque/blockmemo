@@ -141,6 +141,27 @@ footer{text-align:center;padding:50px 20px 70px;font-size:11px}
 .adv b{display:block;font-weight:normal;font-size:13px}
 .adv.end small{color:#c77dff}.adv.end .ic{border-color:#c77dff}
 @media(max-width:520px){#advWrap{top:62px}}
+.shot .soc{display:flex;gap:14px;align-items:center;margin-top:10px;font-size:11px}
+.shot .soc button{font:inherit;font-size:11px;background:none;border:0;color:var(--ink);cursor:pointer;padding:4px 2px}
+.shot .soc button.on,#likeBtn.on{color:#ff4d6d}
+.shot .soc button:hover{transform:scale(1.1)}
+#social{display:flex;gap:12px;margin-top:12px}
+#social button{font:inherit;font-size:13px;background:var(--accent);color:#fff;border:0;padding:10px 16px;cursor:pointer;box-shadow:0 3px 0 var(--shadow)}
+#likeBtn.on{background:#ff4d6d;color:#fff;box-shadow:0 3px 0 #8a1f3a}
+#cmtPanel{position:fixed;top:0;right:0;bottom:0;width:min(360px,100vw);background:var(--bg1);color:var(--ink);z-index:6;display:flex;flex-direction:column;padding:14px;gap:10px;transform:translateX(105%);transition:transform .3s cubic-bezier(.2,.9,.3,1);box-shadow:-4px 0 0 var(--shadow)}
+#cmtPanel.on{transform:none}
+#cmtPanel .ch{display:flex;justify-content:space-between;align-items:center;font-size:13px}
+#cmtPanel .ch button{font:inherit;background:#ff5d5d;color:#fff;border:0;width:30px;height:30px;cursor:pointer}
+#cmtNote{font-size:10px;opacity:.75;line-height:1.5}
+#cmtList{flex:1;overflow:auto;display:flex;flex-direction:column;gap:10px;min-height:0}
+#cmtList .c{background:var(--card);padding:10px;font-size:12px;line-height:1.5;word-break:break-word}
+#cmtList .c small{display:block;opacity:.7;font-size:10px;margin-bottom:4px}
+#cmtList .empty{opacity:.7;font-size:12px;text-align:center;padding:20px 0}
+#cmtForm{display:flex;flex-direction:column;gap:8px}
+#cmtForm input,#cmtForm textarea{font:inherit;font-size:12px;padding:9px;border:3px solid var(--ink);background:var(--card);color:var(--ink);resize:none;user-select:text;-webkit-user-select:text}
+#cmtForm button{font:inherit;font-size:12px;background:var(--accent);color:#fff;border:0;padding:10px;cursor:pointer}
+#cmtForm button:disabled{opacity:.5}
+@media(max-width:700px){#cmtPanel{top:auto;height:70vh;width:100%;transform:translateY(105%);box-shadow:0 -4px 0 var(--shadow)}}
 </style>
 </head>
 <body>
@@ -202,11 +223,21 @@ footer{text-align:center;padding:50px 20px 70px;font-size:11px}
 <footer>Made with ❤ and blocks · BlockMemo · more memories coming soon…</footer>
 
 <div id="lb">
+  <aside id="cmtPanel" aria-label="Comments">
+    <div class="ch"><b id="cmtTitle">Comments</b><button id="cmtClose" type="button" aria-label="Close comments">✕</button></div>
+    <div id="cmtNote"></div>
+    <div id="cmtList"></div>
+    <form id="cmtForm" autocomplete="off">
+      <input id="cmtName" maxlength="24" placeholder="Your name" required>
+      <textarea id="cmtText" maxlength="300" rows="2" placeholder="Write a comment…" required></textarea>
+      <button type="submit" id="cmtPost">Post</button>
+    </form>
+  </aside>
   <button id="lbClose" aria-label="Close">✕</button>
   <button class="nav prev" id="lbPrev" aria-label="Previous">◀</button>
   <div class="stage" id="stage"><img id="lbImg" alt="" draggable="false"></div>
   <button class="nav next" id="lbNext" aria-label="Next">▶</button>
-  <p id="lbCap"></p><div id="lbCount"></div><div id="lbHint">Swipe or use the arrow keys · Esc to close</div>
+  <p id="lbCap"></p><div id="social"><button id="likeBtn" type="button" aria-label="Like">♡ 0</button><button id="cmtBtn" type="button" aria-label="Comments">💬 0</button></div><div id="lbCount"></div><div id="lbHint">Swipe or use the arrow keys · Esc to close</div>
 </div>
 
 <script>
@@ -331,7 +362,7 @@ document.getElementById("lbNext").onclick=e=>{e.stopPropagation();next()};
 document.getElementById("lbPrev").onclick=e=>{e.stopPropagation();prev()};
 document.getElementById("lbClose").onclick=e=>{e.stopPropagation();closeLb()};
 lb.addEventListener("click",e=>{if(e.target===lb)closeLb()});
-addEventListener("keydown",e=>{if(!lb.classList.contains("on"))return;if(e.key==="Escape")closeLb();if(e.key==="ArrowRight")next();if(e.key==="ArrowLeft")prev()});
+addEventListener("keydown",e=>{if(!lb.classList.contains("on"))return;if(e.target&&e.target.matches&&e.target.matches("input,textarea")){if(e.key==="Escape")e.target.blur();return}if(e.key==="Escape")closeLb();if(e.key==="ArrowRight")next();if(e.key==="ArrowLeft")prev()});
 /* swipe / drag */
 let sx=0,sy=0,dx=0,drag=false,locked=false;
 stage.addEventListener("pointerdown",e=>{drag=true;locked=false;sx=e.clientX;sy=e.clientY;dx=0;stage.setPointerCapture(e.pointerId);lbImg.className=""});
@@ -461,5 +492,80 @@ const SONGS=[
   if(!hook())addEventListener("DOMContentLoaded",hook);
 })();
 </script>
+
+<script src="config.js"></script>
+<script>
+/* Likes + comments. Shared across visitors once config.js sets BM_DB_URL (Firebase Realtime Database). */
+const DB_URL=window.BM_DB_URL||"";
+(function(){
+  const gal=document.getElementById("gallery"),figs=[...gal.querySelectorAll("figure.shot")];
+  const slug=s=>s.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+  const used={};LIST.forEach(m=>{let id=slug(m.t)||"photo",n=id,k=1;while(used[n])n=id+"-"+(++k);used[n]=1;m.id=n});
+  const ls={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(_){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(_){}}};
+  let me=ls.get("bm_cid",null);if(!me){me=Math.random().toString(36).slice(2)+Date.now().toString(36);ls.set("bm_cid",me)}
+  const online=!!DB_URL,base=DB_URL.replace(/\/$/,"");
+  let likes={},comments={};            /* likes[id]={cid:true}, comments[id]={key:{n,t,ts}} */
+  /* ---- storage layer ---- */
+  async function api(path,method,body){
+    const r=await fetch(base+path+".json",{method:method||"GET",body:body===undefined?undefined:JSON.stringify(body)});
+    if(!r.ok)throw new Error(r.status);return r.json()}
+  async function load(){
+    if(online){try{const [l,c]=await Promise.all([api("/likes"),api("/comments")]);likes=l||{};comments=c||{}}catch(_){}}
+    else{likes=ls.get("bm_likes",{});comments=ls.get("bm_comments",{})}
+    paint()}
+  async function toggleLike(id){
+    const on=!!(likes[id]&&likes[id][me]);likes[id]=likes[id]||{};
+    if(on)delete likes[id][me];else likes[id][me]=true;paint();
+    if(online){try{await api("/likes/"+id+"/"+me,on?"DELETE":"PUT",on?undefined:true)}catch(_){}}else ls.set("bm_likes",likes)}
+  async function postComment(id,n,t){
+    const c={n,t,ts:Date.now()};comments[id]=comments[id]||{};
+    if(online){const r=await api("/comments/"+id,"POST",{n,t,ts:{".sv":"timestamp"}});comments[id][r.name]=c}
+    else{comments[id]["l"+Date.now()]=c;ls.set("bm_comments",comments)}
+    paint()}
+  /* ---- UI ---- */
+  const cnt=o=>o?Object.keys(o).length:0;
+  const rel=ts=>{const s=(Date.now()-ts)/1000;if(s<60)return"just now";if(s<3600)return Math.floor(s/60)+"m ago";if(s<86400)return Math.floor(s/3600)+"h ago";return Math.floor(s/86400)+"d ago"};
+  const likeBtn=document.getElementById("likeBtn"),cmtBtn=document.getElementById("cmtBtn"),panel=document.getElementById("cmtPanel"),list=document.getElementById("cmtList"),form=document.getElementById("cmtForm"),nameI=document.getElementById("cmtName"),textI=document.getElementById("cmtText"),note=document.getElementById("cmtNote"),title=document.getElementById("cmtTitle");
+  nameI.value=ls.get("bm_name","");
+  note.textContent=online?"":"Demo mode: likes and comments are saved only in this browser until the database is connected.";
+  figs.forEach((f,i)=>{
+    const m=LIST[i];if(!m)return;
+    const row=document.createElement("div");row.className="soc";
+    row.innerHTML='<button type="button" class="lk" aria-label="Like"></button><button type="button" class="cm" aria-label="Comments"></button>';
+    f.append(row);
+    row.querySelector(".lk").onclick=e=>{e.stopPropagation();toggleLike(m.id)};
+    row.querySelector(".cm").onclick=e=>{e.stopPropagation();openLb(i);setTimeout(()=>openPanel(true),50)};
+    f._row=row});
+  function paint(){
+    figs.forEach((f,i)=>{const m=LIST[i];if(!f._row||!m)return;
+      const lk=f._row.querySelector(".lk"),mine=!!(likes[m.id]&&likes[m.id][me]);
+      lk.textContent=(mine?"♥ ":"♡ ")+cnt(likes[m.id]);lk.classList.toggle("on",mine);
+      f._row.querySelector(".cm").textContent="💬 "+cnt(comments[m.id])});
+    const m=LIST[cur];if(!m)return;
+    const mine=!!(likes[m.id]&&likes[m.id][me]);
+    likeBtn.textContent=(mine?"♥ ":"♡ ")+cnt(likes[m.id]);likeBtn.classList.toggle("on",mine);
+    cmtBtn.textContent="💬 "+cnt(comments[m.id]);title.textContent="Comments · "+m.t;
+    const arr=Object.values(comments[m.id]||{}).sort((a,b)=>a.ts-b.ts);list.textContent="";
+    if(!arr.length){const e=document.createElement("div");e.className="empty";e.textContent="No comments yet. Be the first!";list.append(e)}
+    arr.forEach(c=>{const d=document.createElement("div");d.className="c";const s=document.createElement("small");s.textContent=c.n+" · "+rel(c.ts);const t=document.createElement("div");t.textContent=c.t;d.append(s,t);list.append(d)});
+    list.scrollTop=list.scrollHeight}
+  function openPanel(on){panel.classList.toggle("on",on===undefined?!panel.classList.contains("on"):on)}
+  likeBtn.onclick=e=>{e.stopPropagation();toggleLike(LIST[cur].id)};
+  cmtBtn.onclick=e=>{e.stopPropagation();openPanel();paint()};
+  document.getElementById("cmtClose").onclick=e=>{e.stopPropagation();openPanel(false)};
+  panel.addEventListener("click",e=>e.stopPropagation());
+  let last=0;
+  form.onsubmit=async e=>{e.preventDefault();
+    const n=nameI.value.trim().slice(0,24),t=textI.value.trim().slice(0,300);if(!n||!t)return;
+    if(Date.now()-last<4000)return;last=Date.now();
+    const b=document.getElementById("cmtPost");b.disabled=true;
+    try{ls.set("bm_name",n);await postComment(LIST[cur].id,n,t);textI.value=""}catch(_){note.textContent="Could not post right now. Try again."}
+    b.disabled=false};
+  const _show=show;show=function(i,d){_show(i,d);paint()};
+  const _close=closeLb;closeLb=function(){openPanel(false);_close()};
+  load();setInterval(()=>{if(!document.hidden)load()},20000);
+})();
+</script>
+
 </body>
 </html>
